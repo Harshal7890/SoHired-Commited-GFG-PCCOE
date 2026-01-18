@@ -437,6 +437,7 @@ export const getJobApplicantsController = async (req, res) => {
         // Fetch Job Status
         const jobDoc = await db.collection("jobs").doc(jobId).get();
         const jobStatus = jobDoc.exists ? jobDoc.data().status : "Active";
+        const jobData = jobDoc.exists ? jobDoc.data() : null;
 
         const snapshot = await db
             .collection("jobs")
@@ -450,7 +451,7 @@ export const getJobApplicantsController = async (req, res) => {
             ...doc.data(),
         }));
 
-        res.status(200).json({ applicants, jobStatus });
+        res.status(200).json({ applicants, jobStatus, jobData });
     } catch (error) {
         console.error("Error fetching applicants:", error);
         res.status(500).json({
@@ -608,7 +609,9 @@ export const analyzeSubmissionController = async (req, res) => {
         const { jobId, applicantId } = req.params;
 
         if (!jobId || !applicantId) {
-            return res.status(400).json({ message: "Job ID and Applicant ID are required" });
+            return res
+                .status(400)
+                .json({ message: "Job ID and Applicant ID are required" });
         }
 
         // 1. Fetch Job and Applicant Data
@@ -617,11 +620,13 @@ export const analyzeSubmissionController = async (req, res) => {
 
         const [jobDoc, applicantDoc] = await Promise.all([
             jobRef.get(),
-            applicantRef.get()
+            applicantRef.get(),
         ]);
 
-        if (!jobDoc.exists) return res.status(404).json({ message: "Job not found" });
-        if (!applicantDoc.exists) return res.status(404).json({ message: "Applicant not found" });
+        if (!jobDoc.exists)
+            return res.status(404).json({ message: "Job not found" });
+        if (!applicantDoc.exists)
+            return res.status(404).json({ message: "Applicant not found" });
 
         const jobData = jobDoc.data();
         const applicantData = applicantDoc.data();
@@ -630,7 +635,7 @@ export const analyzeSubmissionController = async (req, res) => {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({
             model: "gemini-flash-latest",
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: { responseMimeType: "application/json" },
         });
 
         const prompt = `
@@ -662,17 +667,16 @@ export const analyzeSubmissionController = async (req, res) => {
             aiScore: aiAnalysis.score,
             aiSummary: aiAnalysis.summary,
             aiPros: aiAnalysis.pros,
-            aiAnalyzedAt: new Date().toISOString()
+            aiAnalyzedAt: new Date().toISOString(),
         });
 
         // 5. Respond
         res.status(200).json(aiAnalysis);
-
     } catch (error) {
         console.error("Error analyzing submission:", error);
         res.status(500).json({
             message: "AI Analysis failed",
-            error: error.message
+            error: error.message,
         });
     }
 };
